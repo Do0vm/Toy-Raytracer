@@ -41,6 +41,23 @@ vec3 pathTrace(Ray ray, std::vector<Object*> objects, int depth){ // Light and g
 	if (finalHi.emissive)
 		return finalHi.colour;
 
+
+	float p = 0.8f;
+	float randomNumber = random();
+	if (randomNumber > p)
+		return vec3(0.f);
+
+	Ray randomRay;
+	randomRay.origin = finalHi.hitLocation;
+	randomRay.direction = randomDirection(finalHi.normal);
+
+	float cosine = fabs(dot(-ray.direction, finalHi.normal));
+	vec3 orignalColour = finalHi.colour;
+	vec3 newColour = pathTrace(randomRay, objects, depth + 1) * cosine;
+	vec3 colour = newColour * orignalColour;
+
+	return colour / p;
+
 	return vec3(0.f);
 
 
