@@ -1,296 +1,230 @@
 #include <SFML/Graphics.hpp>
-#include "Library.h"
+#include "Library.h" // Assuming this contains vec3, Ray, Object, Sphere, Triangle, HitInfo, random, randomDirection, normalize, dot etc.
 #include <vector>
+#include <fstream>
+#include <string>    // Required for std::string and std::to_string
+#include <cmath>     // For pow, std::cos, std::sin (std::cos, std::sin not needed for linear motion)
+#include <algorithm> // For std::min, std::max (optional, for clamping)
 
-#define WINDOW_WIDTH 400
-#define WINDOW_HEIGHT 400
+#define WINDOW_WIDTH 250
+#define WINDOW_HEIGHT 250
 
+const int numSamples = 1000; // As in your provided code
 
-const int numSamples = 1000;
-const vec3 eye = vec3(0.f, 0.f, 5.f);
+vec3 eye(0.f, 0.f, 5.f);   // Non-const, will be updated for each meta-frame
+
 const int maxDepth = 10;
-const float brightness = (2.f * 3.1415926f) * (1.f / float(numSamples));
+const float PI_FLOAT = 3.1415926535f; // Define PI for calculations (not strictly needed for this camera motion)
+const float brightness = (1000.f * PI_FLOAT) * (1.f / float(numSamples));
 
-vec3 pathTrace(Ray ray, std::vector<Object*> objects, int depth){ // Light and global illumin
-
-	if (depth > maxDepth) {
-		return vec3(0.f);
-
-
-
-	}
-
-	double minT = 10000000.f;
-	HitInfo hi, finalHi;
-
-	for (int i = 0; i < objects.size(); i++) {
-		hi = objects[i]->hit(ray);
-
-
-		if (hi.hit && hi.t < minT) {
-			minT = hi.t;
-			finalHi = hi;
-
-		}
-	}
-
-	if (!finalHi.hit)
-		return vec3(0.f);
-
-
-	if (finalHi.emissive)
-		return finalHi.colour;
-
-
-	float p = 0.8f;
-	float randomNumber = random();
-	if (randomNumber > p)
-		return vec3(0.f);
-
-	Ray randomRay;
-	randomRay.origin = finalHi.hitLocation;
-	randomRay.direction = randomDirection(finalHi.normal);
-
-	float cosine = fabs(dot(-ray.direction, finalHi.normal));
-	vec3 orignalColour = finalHi.colour;
-	vec3 newColour = pathTrace(randomRay, objects, depth + 1) * cosine;
-	vec3 colour = newColour * orignalColour;
-
-	return colour / p;
-
-	return vec3(0.f);
-
-
-	}
+vec3 pathTrace(Ray ray, const std::vector<Object*>& objects, int depth) {
+    if (depth > maxDepth) return vec3(0.f);
+    double minT = 1e8;
+    HitInfo hi, finalHi;
+    for (auto obj : objects) {
+        hi = obj->hit(ray);
+        if (hi.hit && hi.t < minT) {
+            minT = hi.t;
+            finalHi = hi;
+        }
+    }
+    if (!finalHi.hit) return vec3(0.f);
+    if (finalHi.emissive) return finalHi.colour;
+    float p = 0.8f;
+    if (random() > p) return vec3(0.f);
+    Ray r;
+    r.origin = finalHi.hitLocation;
+    r.direction = randomDirection(finalHi.normal);
+    float cosine = fabs(dot(-ray.direction, finalHi.normal));
+    vec3 newCol = pathTrace(r, objects, depth + 1) * cosine;
+    return (newCol * finalHi.colour) / p;
+}
 
 int main() {
+    std::vector<Object*> objects;
 
-	std::vector<Object*> objects;
-	
-	Sphere sphere;
-	sphere.centre = vec3(0.f, -0.7f, -0.5f);
-	sphere.radius = 0.3f;
-	sphere.colour = vec3(2.f);
-	objects.push_back(&sphere);
+    // Scene setup (identical to your original code)
+    Sphere sphere;
+    sphere.centre = vec3(0.f, -0.7f, -0.5f);
+    sphere.radius = 0.3f;
+    sphere.colour = vec3(2.f);
+    objects.push_back(&sphere);
 
-	Triangle floor1 = Triangle();
-	floor1.v1 = vec3(1.f, -1.f, 1.f);
-	floor1.v2 = vec3(-1.f, -1.f, -1.f);
-	floor1.v3 = vec3(-1.f, -1.f, 1.f);
-	floor1.colour = vec3(1.f);
-	objects.push_back(&floor1);
+    Sphere sphere2;
+    sphere2.centre = vec3(0.8f, -0.7f, -0.5f);
+    sphere2.radius = 0.3f;
+    sphere2.colour = vec3(1.f, 0.f, 0.f);
+    objects.push_back(&sphere2);
 
-	Triangle floor2 = Triangle();
-	floor2.v1 = vec3(1.f, -1.f, 1.f);
-	floor2.v2 = vec3(1.f, -1.f, -1.f);
-	floor2.v3 = vec3(-1.f, -1.f, -1.f);
-	floor2.colour = vec3(1.f);
-	objects.push_back(&floor2);
+    Triangle floor1;
+    floor1.v1 = vec3(-50.f, -1.f, 50.f);
+    floor1.v2 = vec3(50.f, -1.f, 50.f);
+    floor1.v3 = vec3(50.f, -1.f, -50.f);
+    floor1.colour = vec3(0.8f, 0.8f, 0.8f);
+    objects.push_back(&floor1);
 
-	Triangle light1 = Triangle();
-	light1.v1 = vec3(0.5f, 0.99f, 0.5f);
-	light1.v2 = vec3(-0.5f, 0.99f, -0.5f);
-	light1.v3 = vec3(-0.5f, 0.99f, 0.5f);
-	light1.colour = vec3(1.f);
-	light1.emissive = true;
-	
-	objects.push_back(&light1);
+    Triangle floor2;
+    floor2.v1 = vec3(-50.f, -1.f, 50.f);
+    floor2.v2 = vec3(50.f, -1.f, -50.f);
+    floor2.v3 = vec3(-50.f, -1.f, -50.f);
+    floor2.colour = vec3(0.8f, 0.8f, 0.8f);
+    objects.push_back(&floor2);
 
-	Triangle light2 = Triangle();
-	light2.v1 = vec3(0.5f, 0.99f, 0.5f);
-	light2.v2 = vec3(0.5f, 0.99f, -0.5f);
-	light2.v3 = vec3(-0.5f, 0.99f, -0.5f);
-	light2.colour = vec3(1.f);
-	light2.emissive = true;
-	objects.push_back(&light2);
+    Triangle light1;
+    light1.v1 = vec3(0.5f, 0.99f, 0.5f);
+    light1.v2 = vec3(-0.5f, 0.99f, -0.5f);
+    light1.v3 = vec3(-0.5f, 0.99f, 0.5f);
+    light1.colour = vec3(2.f);
+    light1.emissive = true;
+    objects.push_back(&light1);
 
-	Triangle ceiling1 = Triangle();
-	ceiling1.v1 = vec3(1.f, 1.f, 1.f);
-	ceiling1.v2 = vec3(-1.f, 1.f, -1.f);
-	ceiling1.v3 = vec3(-1.f, 1.f, 1.f);
-	ceiling1.colour = vec3(1.f);
-	objects.push_back(&ceiling1);
+    Triangle light2;
+    light2.v1 = vec3(0.5f, 0.99f, 0.5f);
+    light2.v2 = vec3(0.5f, 0.99f, -0.5f);
+    light2.v3 = vec3(-0.5f, 0.99f, -0.5f);
+    light2.colour = vec3(2.f);
+    light2.emissive = true;
+    objects.push_back(&light2);
 
-	Triangle ceiling2 = Triangle();
-	ceiling2.v1 = vec3(1.f, 1.f, 1.f);
-	ceiling2.v2 = vec3(1.f, 1.f, -1.f);
-	ceiling2.v3 = vec3(-1.f, 1.f, -1.f);
-	ceiling2.colour = vec3(1.f);
-	objects.push_back(&ceiling2);
+    auto addPyramid = [&](vec3 P, float size, vec3 col) {
+        vec3 b0 = P + vec3(-size, 0.f, -size);
+        vec3 b1 = P + vec3(size, 0.f, -size);
+        vec3 b2 = P + vec3(size, 0.f, size);
+        vec3 b3 = P + vec3(-size, 0.f, size);
+        vec3 tip = P + vec3(0.f, size * 1.5f, 0.f);
+        static Triangle tbase1, tbase2;
+        tbase1.v1 = b0; tbase1.v2 = b1; tbase1.v3 = b2; tbase1.colour = col; objects.push_back(&tbase1);
+        tbase2.v1 = b0; tbase2.v2 = b2; tbase2.v3 = b3; tbase2.colour = col; objects.push_back(&tbase2);
+        static Triangle s0, s1, s2, s3;
+        s0.v1 = b0; s0.v2 = b1; s0.v3 = tip; s0.colour = col; objects.push_back(&s0);
+        s1.v1 = b1; s1.v2 = b2; s1.v3 = tip; s1.colour = col; objects.push_back(&s1);
+        s2.v1 = b2; s2.v2 = b3; s2.v3 = tip; s2.colour = col; objects.push_back(&s2);
+        s3.v1 = b3; s3.v2 = b0; s3.v3 = tip; s3.colour = col; objects.push_back(&s3);
+        };
+    addPyramid(vec3(-0.8f, -1.f, -0.5f), 0.5f, vec3(0.2f, 0.8f, 0.2f));
 
-	
-	Triangle left1 = Triangle();
-	left1.v1 = vec3(-1.f, -1.f, -1.f);
-	left1.v2 = vec3(-1.f, 1.f, 1.f);
-	left1.v3 = vec3(-1.f, -1.f, 1.f);
-	left1.colour = vec3(1.f,0.f,0.f);
-	objects.push_back(&left1);
+    double* image = new double[WINDOW_WIDTH * WINDOW_HEIGHT * 3];
+    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT * 3; ++i) {
+        image[i] = 0.0;
+    }
 
-	Triangle left2 = Triangle();
-	left2.v1 = vec3(-1.f, -1.f, -1.f);
-	left2.v2 = vec3(-1.f, 1.f, -1.f);
-	left2.v3 = vec3(-1.f, 1.f, 1.f);
-	left2.colour = vec3(1.f,0.f,0.f);
-	objects.push_back(&left2);
+    sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Ray Tracing");
+    sf::Image sfImage;
+    sfImage.create(WINDOW_WIDTH, WINDOW_HEIGHT, sf::Color::Black);
+    sf::Texture texture;
+    texture.loadFromImage(sfImage);
+    sf::Sprite sprite(texture);
 
+    float samples_count_float = 0;
+    int current_meta_frame_number = 1;
+    const int total_meta_frames = 5;
 
-	Triangle right1 = Triangle();
-	right1.v1 = vec3(1.f, 1.f, 1.f);
-	right1.v2 = vec3(1.f, -1.f, -1.f);
-	right1.v3 = vec3(1.f, -1.f, 1.f);
-	right1.colour = vec3(0.f, 1.f, 0.f);
-	objects.push_back(&right1);
+    // Camera animation parameters for moving towards shapes
+    const vec3 start_eye_position(0.f, 0.5f, 5.0f); // Start further away, slightly elevated
+    // End closer to the scene. Image plane is at z=1.2. Keep eye.z > 1.2 for this ray setup.
+    const vec3 end_eye_position(0.f, 0.0f, 1.5f);
 
-	Triangle right2 = Triangle();
-	right2.v1 = vec3(1.f, -1.f, -1.f);
-	right2.v2 = vec3(1.f, 1.f, 1.f);
-	right2.v3 = vec3(1.f, 1.f, -1.f);
-	right2.colour = vec3(0.f, 1.f, 0.f);
-	objects.push_back(&right2);
+    while (window.isOpen()) {
+        sf::Event ev;
+        while (window.pollEvent(ev)) {
+            if (ev.type == sf::Event::Closed) {
+                window.close();
+            }
+        }
 
-	Triangle back1 = Triangle();
-	back1.v1 = vec3(1.f, -1.f, -1.f);
-	back1.v2 = vec3(-1.f, 1.f, -1.f);
-	back1.v3 = vec3(-1.f, -1.f, -1.f);
-	back1.colour = vec3(1.f);
-	objects.push_back(&back1);
+        if (current_meta_frame_number <= total_meta_frames) {
 
-	Triangle back2 = Triangle();
-	back2.v1 = vec3(1.f, -1.f, -1.f);
-	back2.v2 = vec3(1.f, 1.f, -1.f);
-	back2.v3 = vec3(-1.f, 1.f, -1.f);
-	back2.colour = vec3(1.f);
-	objects.push_back(&back2);
+            if (samples_count_float == 0) {
+                // Calculate and update the global 'eye' position for the current meta-frame
+                // Linearly interpolate 'eye' from start_eye_position to end_eye_position
+                float t = 0.0f;
+                if (total_meta_frames > 1) {
+                    // t goes from 0 for the first frame to 1 for the last frame
+                    t = (float)(current_meta_frame_number - 1) / (float)(total_meta_frames - 1);
+                }
+                else {
+                    // If only 1 meta frame, place it at the end position (or start, it's a choice)
+                    t = 1.0f;
+                }
 
+                eye.x = start_eye_position.x * (1.0f - t) + end_eye_position.x * t;
+                eye.y = start_eye_position.y * (1.0f - t) + end_eye_position.y * t;
+                eye.z = start_eye_position.z * (1.0f - t) + end_eye_position.z * t;
+            }
 
+            if (samples_count_float < numSamples) {
+                double* p_accum = image;
+                for (int y_pixel = 0; y_pixel < WINDOW_HEIGHT; ++y_pixel) {
+                    for (int x_pixel = 0; x_pixel < WINDOW_WIDTH; ++x_pixel) {
+                        float i = (2.f * (x_pixel + 0.5f) / WINDOW_WIDTH) - 1.f;
+                        float j = (2.f * (WINDOW_HEIGHT - y_pixel + 0.5f) / WINDOW_HEIGHT) - 1.f;
 
-	double* image = new double[WINDOW_WIDTH * WINDOW_HEIGHT *3];
-	memset(image, 0.0, sizeof(double) * WINDOW_WIDTH * WINDOW_HEIGHT * 3); //render pixels
-	double* p = image;
-	//"I want a blank black screen that I can paint on."
+                        vec3 pixel_on_image_plane(i, j, 1.2f);
+                        vec3 dir = normalize(pixel_on_image_plane - eye);
 
-	sf::RenderWindow window(sf::VideoMode({ WINDOW_WIDTH, WINDOW_HEIGHT }), "Ray Tracing"); // Window to display
+                        Ray ray;
+                        ray.origin = pixel_on_image_plane;
+                        ray.direction = dir;
 
-	sf::Image sfImage;
+                        vec3 col = pathTrace(ray, objects, 0) * brightness;
+                        *p_accum++ += col.r;
+                        *p_accum++ += col.g;
+                        *p_accum++ += col.b;
+                    }
+                }
 
-	sfImage.create( WINDOW_WIDTH, WINDOW_HEIGHT , sf::Color::Black);
-	//“Make an image the same size as my window, filled with black.”
+                double* p_read = image;
+                float display_divisor = samples_count_float + 1.0f;
+                for (int y_pixel = 0; y_pixel < WINDOW_HEIGHT; ++y_pixel) {
+                    for (int x_pixel = 0; x_pixel < WINDOW_WIDTH; ++x_pixel) {
+                        double r_sum = *p_read++;
+                        double g_sum = *p_read++;
+                        double b_sum = *p_read++;
+                        int r_val = int(pow(r_sum / display_divisor, 1 / 2.2f) * 255);
+                        int g_val = int(pow(g_sum / display_divisor, 1 / 2.2f) * 255);
+                        int b_val = int(pow(b_sum / display_divisor, 1 / 2.2f) * 255);
+                        sfImage.setPixel(x_pixel, y_pixel, sf::Color(static_cast<sf::Uint8>(r_val),
+                            static_cast<sf::Uint8>(g_val),
+                            static_cast<sf::Uint8>(b_val)));
+                    }
+                }
+                texture.update(sfImage);
+                samples_count_float++;
+            }
 
-	sf::Texture texture;
-	texture.loadFromImage(sfImage);
+            if (static_cast<int>(samples_count_float) == numSamples) {
+                std::string ppm_filename = "render" + std::to_string(current_meta_frame_number) + ".ppm";
+                std::ofstream ppm(ppm_filename);
+                ppm << "P3\n" << WINDOW_WIDTH << " " << WINDOW_HEIGHT << "\n255\n";
+                double* q = image;
+                for (int yy = 0; yy < WINDOW_HEIGHT; ++yy) {
+                    for (int xx = 0; xx < WINDOW_WIDTH; ++xx) {
+                        double r_sum = *q++;
+                        double g_sum = *q++;
+                        double b_sum = *q++;
+                        ppm << int(pow(r_sum / numSamples, 1 / 2.2f) * 255) << " "
+                            << int(pow(g_sum / numSamples, 1 / 2.2f) * 255) << " "
+                            << int(pow(b_sum / numSamples, 1 / 2.2f) * 255) << "\n";
+                    }
+                }
+                ppm.close();
 
-	sf::Sprite sprite;
-	sprite.setTexture(texture);
-	//connecting the image to a texture (so the computer can draw it), and then putting that texture on a sprite — think of this as preparing to show your image in the window.
+                current_meta_frame_number++;
 
+                if (current_meta_frame_number <= total_meta_frames) {
+                    samples_count_float = 0;
+                    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT * 3; ++i) {
+                        image[i] = 0.0;
+                    }
+                }
+            }
+        }
 
+        window.clear();
+        window.draw(sprite);
+        window.display();
+    }
 
-
-	//Declaring variable to prevent numerous redeclerations inside main whileloop
-	//You're preparing to remember if anything was hit by ray.
-	HitInfo hi, finalHi;
-	Ray ray;
-
-	float i = 0.f, j = 0.f, minT = 10000000.f, s = 0;
-	int r = 0, g = 0, b = 0;
-	vec3 colour = vec3(0.f);
-
-
-	while (window.isOpen()) { // This runs every frame 
-
-		if (s < numSamples) {
-
-
-
-
-
-			p = image;
-
-
-
-
-
-
-			for (int y = 0; y < WINDOW_HEIGHT; y++) { //Go through every pixel on the screen, one by one.
-				for (int x = 0; x < WINDOW_WIDTH; x++) {//looping from the top-left corner to the bottom-right.
-
-					minT = 10000000.f;//resetting things
-					finalHi.hit = false;//resetting things
-					hi.hit = false;//resetting things
-					colour = vec3(0.f); //resetting things
-
-					i = (2.f * float(x) / float(WINDOW_WIDTH)) - 1.f;
-					j = (2.f * float(WINDOW_HEIGHT - y) / float(WINDOW_HEIGHT) - 1.f); //ScreenPositions to Normalized co ordinates
-
-					ray.origin = vec3(i, j, 1.2f);
-					ray.direction = normalize(ray.origin - eye); //position of ray shot
-
-					for (int k = 0; k < objects.size(); k++) { //For each object in the scene, shoot a ray at it and see if it gets hit
-
-						hi = objects[k]->hit(ray);
-						if (hi.hit && hi.t < minT) {
-							finalHi = hi; //If we hit something, and it’s closer than anything we hit before, remember it.
-							minT = hi.t;
-						}
-					}
-
-					if (finalHi.hit) {
-						if (finalHi.emissive)
-							colour = finalHi.colour; //If we didn’t hit anything, the color stays black
-
-
-						else {
-							Ray randomRay;
-							randomRay.origin = finalHi.hitLocation;
-							randomRay.direction = randomDirection(finalHi.normal);
-
-
-
-							vec3 originalColour = finalHi.colour;
-							vec3 newColour = pathTrace(randomRay, objects, 0);
-							colour = newColour * originalColour;
-
-							colour *= brightness;
-						}
-					}
-					*p += colour.r;
-					p++;
-					*p += colour.g;
-					p++;
-					*p += colour.b;
-					p++;
-				}
-			}
-			p = image;
-
-			for (int e = 0; e < WINDOW_HEIGHT; e++) {
-				for (int f = 0; f < WINDOW_WIDTH; f++) {
-					r = clamp(pow(*p++, 1.0f / 2.2f) * 255, 0.0, 255.0);
-					g = clamp(pow(*p++, 1.0f / 2.2f) * 255, 0.0, 255.0);
-					b = clamp(pow(*p++, 1.0f / 2.2f) * 255, 0.0, 255.0);
-
-					sfImage.setPixel(f, e, sf::Color::Color(r, g, b));
-				}
-			}
-
-
-			texture.loadFromImage(sfImage);
-			sprite.setTexture(texture);
-			s++;
-
-
-		}
-	
-		sf::Event sfEvent;
-		while (window.pollEvent(sfEvent)) {
-
-
-			if (sfEvent.type == sf::Event::Closed)
-				window.close();
-		}
-
-		window.clear();
-		window.draw(sprite);
-		window.display();
-	}
+    delete[] image;
+    return 0;
 }
